@@ -4,6 +4,8 @@ const SALES_KEY = 'pos_sales';
 const CUSTOMERS_KEY = 'pos_customers';
 const HELD_ORDERS_KEY = 'pos_held_orders';
 const SETTINGS_KEY = 'pos_shop_settings';
+const SUPPLIERS_KEY = 'pos_suppliers';
+const PURCHASE_ORDERS_KEY = 'pos_purchase_orders';
 
 // Global data
 let items = [];
@@ -11,6 +13,8 @@ let sales = [];
 let cart = [];
 let customers = [];
 let heldOrders = [];
+let suppliers = [];
+let purchaseOrders = [];
 let shopSettings = {};
 let currentCustomer = { name: 'Walk-in Customer' };
 let currentOrderNumber = 1;
@@ -18,6 +22,9 @@ let discount = 0;
 let discountType = 'percentage';
 let gstEnabled = true;
 let gstRate = 18;
+let autoBackupIntervalId = null;
+let autoBackupEnabled = false;
+let notificationIntervalId = null;
 
 // DOM elements
 const sections = document.querySelectorAll('.section');
@@ -51,6 +58,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('reportFromDate').value = thirtyDaysAgo;
     document.getElementById('reportToDate').value = today;
 
+    // Initialize notifications
+    requestNotificationPermission();
+    startNotifications();
+
     // Search functionality
     document.getElementById('itemSearch').addEventListener('input', filterItems);
     document.getElementById('inventorySearch').addEventListener('input', filterInventory);
@@ -80,10 +91,15 @@ document.addEventListener('DOMContentLoaded', () => {
             website: document.getElementById('shopWebsite').value,
             logo: document.getElementById('shopLogo').value
         };
+        autoBackupEnabled = document.getElementById('autoBackupEnabled').checked;
+        localStorage.setItem('autoBackupInterval', document.getElementById('autoBackupInterval').value);
         saveData();
         closeModal();
         alert('Settings saved!');
     });
+
+    document.getElementById('supplierForm').addEventListener('submit', saveSupplier);
+    document.getElementById('poForm').addEventListener('submit', savePurchaseOrder);
 });
 
 // Show section function
@@ -92,6 +108,10 @@ function showSection(sectionId) {
         section.classList.remove('active');
     });
     document.getElementById(sectionId).classList.add('active');
+
+    if (sectionId === 'purchase') {
+        viewPurchaseOrders();
+    }
 }
 
 // Data persistence functions
@@ -100,7 +120,10 @@ function loadData() {
     sales = JSON.parse(localStorage.getItem(SALES_KEY)) || [];
     customers = JSON.parse(localStorage.getItem(CUSTOMERS_KEY)) || [];
     heldOrders = JSON.parse(localStorage.getItem(HELD_ORDERS_KEY)) || [];
+    suppliers = JSON.parse(localStorage.getItem(SUPPLIERS_KEY)) || [];
+    purchaseOrders = JSON.parse(localStorage.getItem(PURCHASE_ORDERS_KEY)) || [];
     shopSettings = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {};
+    autoBackupEnabled = JSON.parse(localStorage.getItem('autoBackupEnabled')) || false;
     currentOrderNumber = sales.length + 1;
 
     // Migrate old items to new structure
@@ -116,6 +139,7 @@ function loadData() {
         mrp: item.mrp || item.price || 0,
         quantity: item.quantity || 0,
         minStock: item.minStock || 0,
+        expiryDate: item.expiryDate || '',
         supplier: item.supplier || '',
         lastUpdated: item.lastUpdated || new Date().toISOString()
     }));
@@ -142,7 +166,10 @@ function saveData() {
     localStorage.setItem(SALES_KEY, JSON.stringify(sales));
     localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers));
     localStorage.setItem(HELD_ORDERS_KEY, JSON.stringify(heldOrders));
+    localStorage.setItem(SUPPLIERS_KEY, JSON.stringify(suppliers));
+    localStorage.setItem(PURCHASE_ORDERS_KEY, JSON.stringify(purchaseOrders));
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(shopSettings));
+    localStorage.setItem('autoBackupEnabled', JSON.stringify(autoBackupEnabled));
 }
 
 // Inventory management
@@ -163,6 +190,7 @@ function renderInventoryTable(filteredItems = items) {
             <td>₹${item.mrp.toFixed(2)}</td>
             <td>${item.quantity}</td>
             <td>${item.minStock}</td>
+            <td>${item.expiryDate || 'N/A'}</td>
             <td>${item.supplier || 'N/A'}</td>
             <td class="${statusClass}">${status}</td>
             <td>
@@ -176,6 +204,8 @@ function renderInventoryTable(filteredItems = items) {
 
 function showAddItemForm() {
     document.getElementById('itemName').value = '';
+    document.getElementById('itemSKU').value = '';
+    document.getElementById('itemExpiryDate').value = '';
     document.getElementById('itemSKU').value = '';
     document.getElementById('itemBarcode').value = '';
     document.getElementById('itemHSN').value = '';
@@ -198,6 +228,9 @@ function closeModal() {
     document.getElementById('receiptModal').style.display = 'none';
     document.getElementById('invoiceModal').style.display = 'none';
     document.getElementById('settingsModal').style.display = 'none';
+    document.getElementById('supplierModal').style.display = 'none';
+    document.getElementById('poModal').style.display = 'none';
+    document.getElementById('barcodeModal').style.display = 'none';
 }
 
 addItemForm.addEventListener('submit', (e) => {
@@ -212,11 +245,12 @@ addItemForm.addEventListener('submit', (e) => {
     const mrp = parseFloat(document.getElementById('itemMRP').value);
     const quantity = parseInt(document.getElementById('itemQuantity').value);
     const minStock = parseInt(document.getElementById('itemMinStock').value);
+    const expiryDate = document.getElementById('itemExpiryDate').value;
     const supplier = document.getElementById('itemSupplier').value;
 
     if (name && sku && category && costPrice >= 0 && sellingPrice > 0 && mrp > 0 && quantity >= 0 && minStock >= 0) {
         const id = Date.now();
-        items.push({ id, name, sku, barcode, hsn, category, costPrice, sellingPrice, mrp, quantity, minStock, supplier, lastUpdated: new Date().toISOString() });
+        items.push({ id, name, sku, barcode, hsn, category, costPrice, sellingPrice, mrp, quantity, minStock, expiryDate, supplier, lastUpdated: new Date().toISOString() });
         saveData();
         renderInventoryTable();
         renderItemGrid();
@@ -240,10 +274,11 @@ function editItem(id) {
     const newMRP = parseFloat(prompt('Enter new MRP:', item.mrp));
     const newQuantity = parseInt(prompt('Enter new quantity:', item.quantity));
     const newMinStock = parseInt(prompt('Enter new min stock:', item.minStock));
+    const newExpiryDate = prompt('Enter new expiry date:', item.expiryDate);
     const newSupplier = prompt('Enter new supplier:', item.supplier);
 
     if (newName && newSKU && newCategory && newCostPrice >= 0 && newSellingPrice > 0 && newMRP > 0 && newQuantity >= 0 && newMinStock >= 0) {
-        items[index] = { id, name: newName, sku: newSKU, barcode: newBarcode, hsn: newHSN, category: newCategory, costPrice: newCostPrice, sellingPrice: newSellingPrice, mrp: newMRP, quantity: newQuantity, minStock: newMinStock, supplier: newSupplier, lastUpdated: new Date().toISOString() };
+        items[index] = { id, name: newName, sku: newSKU, barcode: newBarcode, hsn: newHSN, category: newCategory, costPrice: newCostPrice, sellingPrice: newSellingPrice, mrp: newMRP, quantity: newQuantity, minStock: newMinStock, expiryDate: newExpiryDate, supplier: newSupplier, lastUpdated: new Date().toISOString() };
         saveData();
         renderInventoryTable();
         renderItemGrid();
@@ -790,15 +825,19 @@ function generateReport() {
     switch (reportType) {
         case 'sales':
             reportHTML += generateSalesReport(filteredSales);
+            generateSalesChart(filteredSales);
             break;
         case 'inventory':
             reportHTML += generateInventoryReport();
+            generateInventoryChart();
             break;
         case 'customer':
             reportHTML += generateCustomerReport(filteredSales);
+            generateCustomerChart(filteredSales);
             break;
         case 'revenue':
             reportHTML += generateRevenueReport(filteredSales);
+            generateRevenueChart(filteredSales);
             break;
     }
 
@@ -843,6 +882,27 @@ function generateInventoryReport() {
         html += `<tr><td>${item.name}</td><td>${item.quantity}</td><td>${item.minStock}</td></tr>`;
     });
     html += '</tbody></table>';
+
+    // Expiry alerts
+    const today = new Date();
+    const expiringItems = items.filter(item => {
+        if (!item.expiryDate) return false;
+        const expiry = new Date(item.expiryDate);
+        const daysUntilExpiry = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
+        return daysUntilExpiry <= 30; // Expiring in 30 days
+    });
+
+    if (expiringItems.length > 0) {
+        html += '<h4>Items Expiring Soon</h4><table><thead><tr><th>Name</th><th>Expiry Date</th><th>Days Left</th></tr></thead><tbody>';
+        expiringItems.forEach(item => {
+            const expiry = new Date(item.expiryDate);
+            const daysLeft = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
+            html += `<tr><td>${item.name}</td><td>${item.expiryDate}</td><td>${daysLeft}</td></tr>`;
+        });
+        html += '</tbody></table>';
+    }
+
+    html += generateReorderSuggestions();
 
     return html;
 }
@@ -903,6 +963,149 @@ function generateRevenueReport(filteredSales) {
     return html;
 }
 
+function generateSalesChart(filteredSales) {
+    const ctx = document.getElementById('salesChart').getContext('2d');
+    const dailySales = {};
+    filteredSales.forEach(sale => {
+        const date = new Date(sale.date).toISOString().split('T')[0];
+        if (!dailySales[date]) dailySales[date] = 0;
+        dailySales[date] += sale.total;
+    });
+
+    const labels = Object.keys(dailySales).sort();
+    const data = labels.map(date => dailySales[date]);
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Daily Sales',
+                data: data,
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Sales Trend'
+                }
+            }
+        }
+    });
+}
+
+function generateInventoryChart() {
+    const ctx = document.getElementById('inventoryChart').getContext('2d');
+    const categories = {};
+    items.forEach(item => {
+        if (!categories[item.category]) categories[item.category] = 0;
+        categories[item.category] += item.quantity;
+    });
+
+    const labels = Object.keys(categories);
+    const data = labels.map(cat => categories[cat]);
+
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Stock by Category',
+                data: data,
+                backgroundColor: [
+                    '#667eea',
+                    '#764ba2',
+                    '#f093fb',
+                    '#f5576c',
+                    '#4facfe'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Inventory Distribution'
+                }
+            }
+        }
+    });
+}
+
+function generateCustomerChart(filteredSales) {
+    const ctx = document.getElementById('customerChart').getContext('2d');
+    const customerSales = {};
+    filteredSales.forEach(sale => {
+        const customer = sale.customer.name;
+        if (!customerSales[customer]) customerSales[customer] = 0;
+        customerSales[customer] += sale.total;
+    });
+
+    const labels = Object.keys(customerSales).slice(0, 10); // Top 10
+    const data = labels.map(customer => customerSales[customer]);
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Total Spent',
+                data: data,
+                backgroundColor: '#667eea'
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Top Customers'
+                }
+            }
+        }
+    });
+}
+
+function generateRevenueChart(filteredSales) {
+    const ctx = document.getElementById('salesChart').getContext('2d'); // Reuse sales chart canvas
+    const monthlyRevenue = {};
+    filteredSales.forEach(sale => {
+        const month = new Date(sale.date).toISOString().slice(0, 7); // YYYY-MM
+        if (!monthlyRevenue[month]) monthlyRevenue[month] = 0;
+        monthlyRevenue[month] += sale.total;
+    });
+
+    const labels = Object.keys(monthlyRevenue).sort();
+    const data = labels.map(month => monthlyRevenue[month]);
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Monthly Revenue',
+                data: data,
+                backgroundColor: '#48bb78'
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Revenue Trend'
+                }
+            }
+        }
+    });
+}
+
 function exportReport() {
     const reportContent = document.getElementById('reportContent').innerHTML;
     const printWindow = window.open('', '_blank');
@@ -924,6 +1127,8 @@ function showSettings() {
     document.getElementById('shopGST').value = shopSettings.gst || '';
     document.getElementById('shopWebsite').value = shopSettings.website || '';
     document.getElementById('shopLogo').value = shopSettings.logo || '';
+    document.getElementById('autoBackupEnabled').checked = autoBackupEnabled;
+    document.getElementById('autoBackupInterval').value = localStorage.getItem('autoBackupInterval') || 60;
     document.getElementById('settingsModal').style.display = 'block';
 }
 
@@ -935,6 +1140,410 @@ function changeInvoiceStatus(index) {
         saveData();
         renderInvoiceTable();
     }
+}
+
+function exportData() {
+    const data = {
+        items,
+        sales,
+        customers,
+        heldOrders,
+        suppliers,
+        purchaseOrders,
+        shopSettings,
+        exportDate: new Date().toISOString(),
+        version: '1.1'
+    };
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pos_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showBackupStatus('Data exported successfully!');
+}
+
+function importData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (confirm('This will overwrite all current data. Are you sure?')) {
+                items = data.items || [];
+                sales = data.sales || [];
+                customers = data.customers || [];
+                heldOrders = data.heldOrders || [];
+                suppliers = data.suppliers || [];
+                purchaseOrders = data.purchaseOrders || [];
+                shopSettings = data.shopSettings || {};
+                saveData();
+                loadData(); // Reload to update UI
+                showSection('dashboard');
+                renderInventoryTable();
+                renderItemGrid();
+                renderInvoiceTable();
+                updateDashboard();
+                updateInventoryStats();
+                updateCategoryFilter();
+                showBackupStatus('Data imported successfully!');
+            }
+        } catch (error) {
+            alert('Invalid backup file!');
+        }
+    };
+    reader.readAsText(file);
+}
+
+function toggleAutoBackup() {
+    const interval = parseInt(document.getElementById('autoBackupInterval').value) * 60 * 1000; // minutes to ms
+    if (autoBackupEnabled) {
+        clearInterval(autoBackupIntervalId);
+        autoBackupEnabled = false;
+        showBackupStatus('Auto-backup stopped.');
+    } else {
+        autoBackupIntervalId = setInterval(() => {
+            const data = {
+                items,
+                sales,
+                customers,
+                heldOrders,
+                suppliers,
+                purchaseOrders,
+                shopSettings,
+                exportDate: new Date().toISOString(),
+                version: '1.1'
+            };
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `auto_backup_${new Date().toISOString().replace(/:/g, '-')}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, interval);
+        autoBackupEnabled = true;
+        localStorage.setItem('autoBackupInterval', document.getElementById('autoBackupInterval').value);
+        showBackupStatus(`Auto-backup started (every ${document.getElementById('autoBackupInterval').value} minutes).`);
+    }
+    saveData();
+}
+
+function cloudSync() {
+    alert('Cloud sync feature coming soon! For now, use export/import for manual cloud backup.');
+}
+
+function showBackupStatus(message) {
+    const statusDiv = document.getElementById('backupStatus');
+    statusDiv.textContent = message;
+    statusDiv.style.display = 'block';
+    setTimeout(() => {
+        statusDiv.style.display = 'none';
+    }, 5000);
+}
+
+// Supplier Management
+function showSupplierModal() {
+    document.getElementById('supplierName').value = '';
+    document.getElementById('supplierContact').value = '';
+    document.getElementById('supplierEmail').value = '';
+    document.getElementById('supplierAddress').value = '';
+    document.getElementById('supplierModal').style.display = 'block';
+}
+
+function saveSupplier(event) {
+    event.preventDefault();
+    const supplier = {
+        id: Date.now(),
+        name: document.getElementById('supplierName').value,
+        contact: document.getElementById('supplierContact').value,
+        email: document.getElementById('supplierEmail').value,
+        address: document.getElementById('supplierAddress').value
+    };
+    suppliers.push(supplier);
+    saveData();
+    closeModal();
+    alert('Supplier added successfully!');
+}
+
+// Purchase Orders
+function createPurchaseOrder() {
+    populateSupplierDropdown();
+    document.getElementById('poItems').innerHTML = '';
+    addPOItem();
+    document.getElementById('poModal').style.display = 'block';
+}
+
+function populateSupplierDropdown() {
+    const select = document.getElementById('poSupplier');
+    select.innerHTML = '<option value="">Select Supplier</option>';
+    suppliers.forEach(supplier => {
+        select.innerHTML += `<option value="${supplier.id}">${supplier.name}</option>`;
+    });
+}
+
+function addPOItem() {
+    const itemDiv = document.createElement('div');
+    itemDiv.className = 'po-item';
+    itemDiv.innerHTML = `
+        <select class="po-item-select" required>
+            <option value="">Select Item</option>
+            ${items.filter(item => item.quantity <= item.minStock).map(item => `<option value="${item.id}">${item.name}</option>`).join('')}
+        </select>
+        <input type="number" class="po-quantity" placeholder="Quantity" min="1" required>
+        <button type="button" onclick="removePOItem(this)">Remove</button>
+    `;
+    document.getElementById('poItems').appendChild(itemDiv);
+}
+
+function removePOItem(button) {
+    button.parentElement.remove();
+}
+
+function savePurchaseOrder(event) {
+    event.preventDefault();
+    const supplierId = document.getElementById('poSupplier').value;
+    const poItems = [];
+    document.querySelectorAll('.po-item').forEach(itemDiv => {
+        const itemId = itemDiv.querySelector('.po-item-select').value;
+        const quantity = itemDiv.querySelector('.po-quantity').value;
+        if (itemId && quantity) {
+            poItems.push({ itemId: parseInt(itemId), quantity: parseInt(quantity) });
+        }
+    });
+
+    if (supplierId && poItems.length > 0) {
+        const po = {
+            id: Date.now(),
+            supplierId: parseInt(supplierId),
+            items: poItems,
+            status: 'pending',
+            createdDate: new Date().toISOString()
+        };
+        purchaseOrders.push(po);
+        saveData();
+        closeModal();
+        alert('Purchase Order created successfully!');
+    }
+}
+
+// View Purchase Orders
+function viewPurchaseOrders() {
+    let html = '<h3>Purchase Orders</h3><table><thead><tr><th>ID</th><th>Supplier</th><th>Items</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+    purchaseOrders.forEach(po => {
+        const supplier = suppliers.find(s => s.id === po.supplierId);
+        const itemsList = po.items.map(item => {
+            const itemData = items.find(i => i.id === item.itemId);
+            return `${itemData ? itemData.name : 'Unknown'} (${item.quantity})`;
+        }).join(', ');
+        html += `<tr><td>${po.id}</td><td>${supplier ? supplier.name : 'Unknown'}</td><td>${itemsList}</td><td>${po.status}</td><td><button onclick="updatePOStatus(${po.id})">Update Status</button></td></tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('purchaseContent').innerHTML = html;
+}
+
+function updatePOStatus(poId) {
+    const po = purchaseOrders.find(p => p.id === poId);
+    if (po) {
+        const newStatus = prompt('Enter new status (pending/received/cancelled):', po.status);
+        if (['pending', 'received', 'cancelled'].includes(newStatus)) {
+            po.status = newStatus;
+            if (newStatus === 'received') {
+                // Update inventory
+                po.items.forEach(poItem => {
+                    const item = items.find(i => i.id === poItem.itemId);
+                    if (item) {
+                        item.quantity += poItem.quantity;
+                        item.lastUpdated = new Date().toISOString();
+                    }
+                });
+            }
+            saveData();
+            renderInventoryTable();
+            renderItemGrid();
+            updateInventoryStats();
+            viewPurchaseOrders();
+        }
+    }
+}
+
+// Barcode Generation
+function generateBarcodes() {
+    const container = document.getElementById('barcodeContainer');
+    container.innerHTML = '';
+    items.forEach(item => {
+        const barcodeDiv = document.createElement('div');
+        barcodeDiv.className = 'barcode-item';
+        barcodeDiv.innerHTML = `
+            <div>${item.name}</div>
+            <svg id="barcode-${item.id}"></svg>
+            <div>₹${item.sellingPrice.toFixed(2)}</div>
+        `;
+        container.appendChild(barcodeDiv);
+
+        // Generate barcode
+        JsBarcode(`#barcode-${item.id}`, item.sku || item.id.toString(), {
+            format: "CODE128",
+            width: 2,
+            height: 40,
+            displayValue: true,
+            fontSize: 12
+        });
+    });
+    document.getElementById('barcodeModal').style.display = 'block';
+}
+
+function printBarcodes() {
+    const printWindow = window.open('', '_blank');
+    const barcodeHTML = document.getElementById('barcodeContainer').innerHTML;
+    printWindow.document.write(`
+        <html>
+        <head><title>Barcode Labels</title><style>
+            body { font-family: Arial, sans-serif; }
+            .barcode-item { page-break-inside: avoid; margin: 10px; padding: 10px; border: 1px solid #000; display: inline-block; width: 180px; text-align: center; }
+            svg { max-width: 100%; }
+        </style></head>
+        <body>${barcodeHTML}</body>
+        </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+}
+
+// Auto reorder
+function checkAutoReorder() {
+    items.forEach(item => {
+        if (item.quantity <= item.minStock && item.supplier) {
+            const supplier = suppliers.find(s => s.name === item.supplier);
+            if (supplier && !purchaseOrders.some(po => po.supplierId === supplier.id && po.status === 'pending' && po.items.some(i => i.itemId === item.id))) {
+                // Create auto PO
+                const po = {
+                    id: Date.now(),
+                    supplierId: supplier.id,
+                    items: [{ itemId: item.id, quantity: Math.max(item.minStock * 2 - item.quantity, 1) }],
+                    status: 'auto_pending',
+                    createdDate: new Date().toISOString()
+                };
+                purchaseOrders.push(po);
+                saveData();
+            }
+        }
+    });
+}
+
+// Stock Alerts & Notifications
+function checkLowStockAlerts() {
+    const lowStockItems = items.filter(item => item.quantity <= item.minStock);
+    if (lowStockItems.length > 0) {
+        if (Notification.permission === 'granted') {
+            new Notification(`Low Stock Alert: ${lowStockItems.length} items`, {
+                body: lowStockItems.map(item => `${item.name}: ${item.quantity}`).join(', '),
+                icon: '/favicon.ico'
+            });
+        }
+        // Email alert (requires EmailJS setup)
+        sendLowStockEmail(lowStockItems);
+    }
+}
+
+function checkExpiryAlerts() {
+    const today = new Date();
+    const expiringSoon = items.filter(item => {
+        if (!item.expiryDate) return false;
+        const expiry = new Date(item.expiryDate);
+        const daysUntilExpiry = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
+        return daysUntilExpiry <= 7 && daysUntilExpiry > 0; // Expiring in 7 days
+    });
+
+    if (expiringSoon.length > 0) {
+        if (Notification.permission === 'granted') {
+            new Notification(`Expiry Alert: ${expiringSoon.length} items`, {
+                body: expiringSoon.map(item => `${item.name}: ${item.expiryDate}`).join(', '),
+                icon: '/favicon.ico'
+            });
+        }
+    }
+}
+
+function sendLowStockEmail(lowStockItems) {
+    // EmailJS integration (requires setup)
+    // Replace with your EmailJS service details
+    const templateParams = {
+        to_email: shopSettings.email || 'admin@example.com',
+        subject: 'Low Stock Alert',
+        message: `The following items are low in stock:\n${lowStockItems.map(item => `${item.name}: ${item.quantity} (Min: ${item.minStock})`).join('\n')}`
+    };
+
+    // emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', templateParams)
+    //     .then(response => console.log('Email sent:', response))
+    //     .catch(error => console.error('Email error:', error));
+
+    console.log('Low stock email would be sent:', templateParams);
+}
+
+function requestNotificationPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                console.log('Notification permission granted');
+            }
+        });
+    }
+}
+
+function startNotifications() {
+    // Check every 5 minutes
+    notificationIntervalId = setInterval(() => {
+        checkLowStockAlerts();
+        checkExpiryAlerts();
+        checkAutoReorder();
+    }, 5 * 60 * 1000);
+}
+
+function stopNotifications() {
+    if (notificationIntervalId) {
+        clearInterval(notificationIntervalId);
+    }
+}
+
+// Automatic reorder suggestions
+function getReorderSuggestions() {
+    return items.filter(item => item.quantity <= item.minStock).map(item => ({
+        item: item.name,
+        currentStock: item.quantity,
+        suggestedOrder: item.minStock * 2 - item.quantity,
+        supplier: item.supplier
+    }));
+}
+
+// Display reorder suggestions in inventory report
+function generateReorderSuggestions() {
+    const suggestions = getReorderSuggestions();
+    if (suggestions.length === 0) return '';
+
+    let html = '<h4>Reorder Suggestions</h4><table><thead><tr><th>Item</th><th>Current Stock</th><th>Suggested Order</th><th>Supplier</th></tr></thead><tbody>';
+    suggestions.forEach(suggestion => {
+        html += `<tr><td>${suggestion.item}</td><td>${suggestion.currentStock}</td><td>${suggestion.suggestedOrder}</td><td>${suggestion.supplier || 'N/A'}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    return html;
+}
+
+// Update inventory report to include reorder suggestions
+const originalGenerateInventoryReport = generateInventoryReport;
+function generateInventoryReport() {
+    let html = originalGenerateInventoryReport();
+    html += generateReorderSuggestions();
+    return html;
 }
 
 // Category filter
@@ -1005,6 +1614,7 @@ function renderFilteredInventoryTable(filteredItems) {
             <td>₹${item.mrp.toFixed(2)}</td>
             <td>${item.quantity}</td>
             <td>${item.minStock}</td>
+            <td>${item.expiryDate || 'N/A'}</td>
             <td>${item.supplier || 'N/A'}</td>
             <td class="${statusClass}">${status}</td>
             <td>
@@ -1018,10 +1628,10 @@ function renderFilteredInventoryTable(filteredItems) {
 
 // Export to CSV
 function exportInventory() {
-    let csv = 'Name,SKU,Barcode,HSN,Category,Cost Price,Selling Price,MRP,Quantity,Min Stock,Supplier,Status\n';
+    let csv = 'Name,SKU,Barcode,HSN,Category,Cost Price,Selling Price,MRP,Quantity,Min Stock,Expiry Date,Supplier,Status\n';
     items.forEach(item => {
         const status = item.quantity <= item.minStock ? 'Low Stock' : 'In Stock';
-        csv += `"${item.name}","${item.sku}","${item.barcode || ''}","${item.hsn || ''}","${item.category}",${item.costPrice},${item.sellingPrice},${item.mrp},${item.quantity},${item.minStock},"${item.supplier || ''}","${status}"\n`;
+        csv += `"${item.name}","${item.sku}","${item.barcode || ''}","${item.hsn || ''}","${item.category}",${item.costPrice},${item.sellingPrice},${item.mrp},${item.quantity},${item.minStock},"${item.expiryDate || ''}","${item.supplier || ''}","${status}"\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);

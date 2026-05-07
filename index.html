@@ -14,6 +14,7 @@
             <button onclick="showSection('inventory')">Inventory</button>
             <button onclick="showSection('pos')">POS</button>
             <button onclick="showSection('billing')">Billing</button>
+            <button onclick="showSection('purchase')">Purchase</button>
             <button onclick="showSection('reports')">Reports</button>
             <button onclick="showSettings()">Settings</button>
         </nav>
@@ -79,10 +80,11 @@
                             <th>Cost Price</th>
                             <th>Selling Price</th>
                             <th>MRP</th>
-                            <th>Quantity</th>
-                            <th>Min Stock</th>
-                            <th>Supplier</th>
-                            <th>Status</th>
+                        <th>Quantity</th>
+                        <th>Min Stock</th>
+                        <th>Expiry Date</th>
+                        <th>Supplier</th>
+                        <th>Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -173,6 +175,17 @@
             </div>
         </section>
 
+        <section id="purchase" class="section">
+            <h2>Purchase Orders & Suppliers</h2>
+            <div class="purchase-controls">
+                <button onclick="showSupplierModal()">Add Supplier</button>
+                <button onclick="createPurchaseOrder()">Create PO</button>
+                <button onclick="viewPurchaseOrders()">View POs</button>
+                <button onclick="generateBarcodes()">Generate Barcodes</button>
+            </div>
+            <div id="purchaseContent"></div>
+        </section>
+
         <section id="reports" class="section">
             <h2>Reports</h2>
             <div class="report-controls">
@@ -190,6 +203,11 @@
                 <button onclick="exportReport()">Export Report</button>
             </div>
             <div id="reportContent"></div>
+            <div class="charts-container">
+                <canvas id="salesChart" width="400" height="200"></canvas>
+                <canvas id="inventoryChart" width="400" height="200"></canvas>
+                <canvas id="customerChart" width="400" height="200"></canvas>
+            </div>
         </section>
     </main>
 
@@ -209,6 +227,7 @@
                 <label>MRP: <input type="number" id="itemMRP" step="0.01" required></label>
                 <label>Quantity: <input type="number" id="itemQuantity" required></label>
                 <label>Min Stock Level: <input type="number" id="itemMinStock" required></label>
+                <label>Expiry Date: <input type="date" id="itemExpiryDate"></label>
                 <label>Supplier: <input type="text" id="itemSupplier"></label>
                 <button type="submit">Add Item</button>
             </form>
@@ -295,6 +314,43 @@
         </div>
     </div>
 
+    <div id="supplierModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>Supplier Details</h3>
+            <form id="supplierForm">
+                <label>Name: <input type="text" id="supplierName" required></label>
+                <label>Contact: <input type="text" id="supplierContact"></label>
+                <label>Email: <input type="email" id="supplierEmail"></label>
+                <label>Address: <textarea id="supplierAddress"></textarea></label>
+                <button type="submit">Save Supplier</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="poModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>Create Purchase Order</h3>
+            <form id="poForm">
+                <label>Supplier: <select id="poSupplier" required></select></label>
+                <label>Items:</label>
+                <div id="poItems"></div>
+                <button type="button" onclick="addPOItem()">Add Item</button>
+                <button type="submit">Create PO</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="barcodeModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>Barcode Labels</h3>
+            <div id="barcodeContainer"></div>
+            <button onclick="printBarcodes()">Print Labels</button>
+        </div>
+    </div>
+
     <div id="settingsModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal()">&times;</span>
@@ -309,9 +365,28 @@
                 <label>Logo URL: <input type="url" id="shopLogo"></label>
                 <button type="submit">Save Settings</button>
             </form>
+
+            <h3>Data Backup & Restore</h3>
+            <div class="backup-controls">
+                <button onclick="exportData()">Export All Data</button>
+                <button onclick="document.getElementById('importFile').click()">Import Data</button>
+                <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importData(event)">
+                <label>
+                    <input type="checkbox" id="autoBackupEnabled"> Enable Auto-Backup
+                </label>
+                <label>Auto-Backup Interval (minutes):
+                    <input type="number" id="autoBackupInterval" min="5" max="1440" value="60">
+                </label>
+                <button onclick="toggleAutoBackup()">Start Auto-Backup</button>
+                <button onclick="cloudSync()" disabled>Cloud Sync (Coming Soon)</button>
+            </div>
+            <div id="backupStatus"></div>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/emailjs-com@2/dist/email.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
