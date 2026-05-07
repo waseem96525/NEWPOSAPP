@@ -5,16 +5,29 @@
     box-sizing: border-box;
 }
 
+:root {
+    --primary-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --secondary-bg: rgba(255, 255, 255, 0.95);
+    --text-color: #2c3e50;
+    --card-bg: rgba(255, 255, 255, 0.9);
+    --button-bg: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    --button-hover: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+    --header-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --nav-bg: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    --danger-bg: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+}
+
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     line-height: 1.6;
-    color: #2c3e50;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: var(--text-color);
+    background: var(--primary-bg);
     min-height: 100vh;
+    transition: background 0.3s, color 0.3s;
 }
 
 header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--header-bg);
     color: #fff;
     padding: 1.5rem;
     text-align: center;
@@ -33,7 +46,7 @@ nav {
 }
 
 nav button {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    background: var(--nav-bg);
     color: #fff;
     border: none;
     padding: 0.75rem 1.5rem;
@@ -54,7 +67,7 @@ main {
     max-width: 1200px;
     margin: 0 auto;
     padding: 2rem;
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--secondary-bg);
     border-radius: 15px;
     margin-top: -1rem;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
@@ -85,7 +98,7 @@ main {
 }
 
 .card {
-    background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+    background: var(--card-bg);
     border-radius: 15px;
     padding: 2rem;
     box-shadow: 0 8px 25px rgba(0,0,0,0.1);
@@ -155,7 +168,7 @@ tr:hover {
 }
 
 button {
-    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    background: var(--button-bg);
     color: white;
     border: none;
     padding: 0.75rem 1.5rem;
@@ -173,7 +186,7 @@ button:hover {
 }
 
 button.danger {
-    background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+    background: var(--danger-bg);
     box-shadow: 0 4px 15px rgba(245, 101, 101, 0.3);
 }
 
@@ -504,6 +517,66 @@ input:focus, select:focus {
     background: rgba(0, 255, 0, 0.1);
     border-radius: 5px;
     display: none;
+}
+
+/* Theme Styles */
+.theme-dark {
+    --primary-bg: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+    --secondary-bg: rgba(45, 55, 72, 0.95);
+    --text-color: #e2e8f0;
+    --card-bg: rgba(45, 55, 72, 0.9);
+    --button-bg: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    --header-bg: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+    --nav-bg: linear-gradient(135deg, #3182ce 0%, #2c5282 100%);
+    --danger-bg: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+}
+
+.theme-blue {
+    --primary-bg: linear-gradient(135deg, #3182ce 0%, #2c5282 100%);
+    --secondary-bg: rgba(255, 255, 255, 0.95);
+    --text-color: #2c5282;
+    --card-bg: rgba(255, 255, 255, 0.9);
+    --button-bg: linear-gradient(135deg, #3182ce 0%, #2c5282 100%);
+    --header-bg: linear-gradient(135deg, #3182ce 0%, #2c5282 100%);
+    --nav-bg: linear-gradient(135deg, #63b3ed 0%, #4299e1 100%);
+    --danger-bg: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+}
+
+.theme-green {
+    --primary-bg: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+    --secondary-bg: rgba(255, 255, 255, 0.95);
+    --text-color: #2f855a;
+    --card-bg: rgba(255, 255, 255, 0.9);
+    --button-bg: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+    --header-bg: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+    --nav-bg: linear-gradient(135deg, #68d391 0%, #48bb78 100%);
+    --danger-bg: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+}
+
+.audit-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+#auditContent {
+    background: var(--card-bg);
+    padding: 1rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.theme-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding: 1rem;
+    background: rgba(102, 126, 234, 0.05);
+    border-radius: 10px;
 }
 
 .customer-item {

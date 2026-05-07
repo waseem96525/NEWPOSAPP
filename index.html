@@ -16,6 +16,7 @@
             <button onclick="showSection('billing')">Billing</button>
             <button onclick="showSection('purchase')">Purchase</button>
             <button onclick="showSection('reports')">Reports</button>
+            <button onclick="showSection('audit')">Audit</button>
             <button onclick="showSettings()">Settings</button>
         </nav>
     </header>
@@ -184,6 +185,22 @@
                 <button onclick="generateBarcodes()">Generate Barcodes</button>
             </div>
             <div id="purchaseContent"></div>
+        </section>
+
+        <section id="audit" class="section">
+            <h2>Audit Trail</h2>
+            <div class="audit-controls">
+                <label>Filter by Action: <select id="auditFilter">
+                    <option value="">All Actions</option>
+                    <option value="sale">Sales</option>
+                    <option value="item_edit">Item Edits</option>
+                    <option value="inventory_adjust">Inventory Adjustments</option>
+                    <option value="user_action">User Actions</option>
+                </select></label>
+                <button onclick="clearAuditLog()">Clear Audit Log</button>
+                <button onclick="exportAuditLog()">Export Audit Log</button>
+            </div>
+            <div id="auditContent"></div>
         </section>
 
         <section id="reports" class="section">
@@ -379,6 +396,16 @@
                 </label>
                 <button onclick="toggleAutoBackup()">Start Auto-Backup</button>
                 <button onclick="cloudSync()" disabled>Cloud Sync (Coming Soon)</button>
+
+            <h3>Appearance</h3>
+            <div class="theme-controls">
+                <label>Theme: <select id="themeSelect">
+                    <option value="default">Default</option>
+                    <option value="dark">Dark Mode</option>
+                    <option value="blue">Blue Theme</option>
+                    <option value="green">Green Theme</option>
+                </select></label>
+                <button onclick="applyTheme()">Apply Theme</button>
             </div>
             <div id="backupStatus"></div>
         </div>

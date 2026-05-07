@@ -6,6 +6,7 @@ const HELD_ORDERS_KEY = 'pos_held_orders';
 const SETTINGS_KEY = 'pos_shop_settings';
 const SUPPLIERS_KEY = 'pos_suppliers';
 const PURCHASE_ORDERS_KEY = 'pos_purchase_orders';
+const AUDIT_LOG_KEY = 'pos_audit_log';
 
 // Global data
 let items = [];
@@ -15,6 +16,7 @@ let customers = [];
 let heldOrders = [];
 let suppliers = [];
 let purchaseOrders = [];
+let auditLog = [];
 let shopSettings = {};
 let currentCustomer = { name: 'Walk-in Customer' };
 let currentOrderNumber = 1;
@@ -38,6 +40,7 @@ const addItemForm = document.getElementById('addItemForm');
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
     loadData();
+    loadTheme();
     showSection('dashboard');
     renderInventoryTable();
     renderItemGrid();
@@ -100,6 +103,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('supplierForm').addEventListener('submit', saveSupplier);
     document.getElementById('poForm').addEventListener('submit', savePurchaseOrder);
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', handleKeyboardShortcuts);
+
+    // Theme and audit listeners
+    document.getElementById('auditFilter').addEventListener('change', (e) => {
+        viewAuditLog(e.target.value);
+    });
 });
 
 // Show section function
@@ -111,6 +122,8 @@ function showSection(sectionId) {
 
     if (sectionId === 'purchase') {
         viewPurchaseOrders();
+    } else if (sectionId === 'audit') {
+        viewAuditLog();
     }
 }
 
@@ -122,6 +135,7 @@ function loadData() {
     heldOrders = JSON.parse(localStorage.getItem(HELD_ORDERS_KEY)) || [];
     suppliers = JSON.parse(localStorage.getItem(SUPPLIERS_KEY)) || [];
     purchaseOrders = JSON.parse(localStorage.getItem(PURCHASE_ORDERS_KEY)) || [];
+    auditLog = JSON.parse(localStorage.getItem(AUDIT_LOG_KEY)) || [];
     shopSettings = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {};
     autoBackupEnabled = JSON.parse(localStorage.getItem('autoBackupEnabled')) || false;
     currentOrderNumber = sales.length + 1;
@@ -168,6 +182,7 @@ function saveData() {
     localStorage.setItem(HELD_ORDERS_KEY, JSON.stringify(heldOrders));
     localStorage.setItem(SUPPLIERS_KEY, JSON.stringify(suppliers));
     localStorage.setItem(PURCHASE_ORDERS_KEY, JSON.stringify(purchaseOrders));
+    localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(auditLog));
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(shopSettings));
     localStorage.setItem('autoBackupEnabled', JSON.stringify(autoBackupEnabled));
 }
@@ -257,6 +272,7 @@ addItemForm.addEventListener('submit', (e) => {
         updateDashboard();
         updateInventoryStats();
         updateCategoryFilter();
+        logAudit('item_add', `Added item: ${name} (SKU: ${sku})`);
         closeModal();
     }
 });
@@ -285,12 +301,14 @@ function editItem(id) {
         updateDashboard();
         updateInventoryStats();
         updateCategoryFilter();
+        logAudit('item_edit', `Edited item: ${newName} (SKU: ${newSKU})`);
     }
 }
 
 function deleteItem(id) {
     const index = items.findIndex(i => i.id === id);
     if (confirm('Are you sure you want to delete this item?')) {
+        const deletedItem = items[index];
         items.splice(index, 1);
         saveData();
         renderInventoryTable();
@@ -298,6 +316,7 @@ function deleteItem(id) {
         updateDashboard();
         updateInventoryStats();
         updateCategoryFilter();
+        logAudit('item_delete', `Deleted item: ${deletedItem.name} (SKU: ${deletedItem.sku})`);
     }
 }
 
@@ -573,6 +592,7 @@ function processPayment(method) {
     renderInvoiceTable();
     closeModal();
     renderItemGrid(); // Update item grid to show reduced stock
+    logAudit('sale', `Sale completed: Order #${sale.orderNumber}, Total: ₹${sale.total.toFixed(2)}`);
     alert('Sale completed!');
 }
 
@@ -1164,6 +1184,7 @@ function exportData() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    logAudit('data_export', 'Data exported successfully');
     showBackupStatus('Data exported successfully!');
 }
 
@@ -1192,6 +1213,7 @@ function importData(event) {
                 updateDashboard();
                 updateInventoryStats();
                 updateCategoryFilter();
+                logAudit('data_import', 'Data imported successfully');
                 showBackupStatus('Data imported successfully!');
             }
         } catch (error) {
@@ -1249,6 +1271,154 @@ function showBackupStatus(message) {
     setTimeout(() => {
         statusDiv.style.display = 'none';
     }, 5000);
+}
+
+// Audit Trail
+function logAudit(action, details, user = 'System') {
+    const entry = {
+        id: Date.now(),
+        timestamp: new Date().toISOString(),
+        user: user,
+        action: action,
+        details: details
+    };
+    auditLog.push(entry);
+    if (auditLog.length > 1000) { // Keep only last 1000 entries
+        auditLog = auditLog.slice(-1000);
+    }
+    saveData();
+}
+
+function viewAuditLog(filter = '') {
+    let filteredLog = auditLog;
+    if (filter) {
+        filteredLog = auditLog.filter(entry => entry.action.includes(filter));
+    }
+    filteredLog.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    let html = '<table><thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Details</th></tr></thead><tbody>';
+    filteredLog.forEach(entry => {
+        html += `<tr><td>${new Date(entry.timestamp).toLocaleString()}</td><td>${entry.user}</td><td>${entry.action}</td><td>${entry.details}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('auditContent').innerHTML = html;
+}
+
+function clearAuditLog() {
+    if (confirm('Are you sure you want to clear the audit log?')) {
+        auditLog = [];
+        saveData();
+        viewAuditLog();
+        logAudit('audit_clear', 'Audit log cleared');
+    }
+}
+
+function exportAuditLog() {
+    const csv = 'Timestamp,User,Action,Details\n' + auditLog.map(entry =>
+        `"${entry.timestamp}","${entry.user}","${entry.action}","${entry.details}"`
+    ).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `audit_log_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// Themes
+function applyTheme() {
+    const theme = document.getElementById('themeSelect').value;
+    document.body.className = `theme-${theme}`;
+    localStorage.setItem('selectedTheme', theme);
+    logAudit('theme_change', `Theme changed to ${theme}`);
+}
+
+function loadTheme() {
+    const theme = localStorage.getItem('selectedTheme') || 'default';
+    document.body.className = `theme-${theme}`;
+    document.getElementById('themeSelect').value = theme;
+}
+
+// Keyboard Shortcuts
+function handleKeyboardShortcuts(event) {
+    // Prevent shortcuts when typing in inputs
+    if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.target.tagName === 'SELECT') {
+        return;
+    }
+
+    switch (event.key) {
+        case 'F1':
+            event.preventDefault();
+            showSection('dashboard');
+            logAudit('keyboard_shortcut', 'F1: Dashboard');
+            break;
+        case 'F2':
+            event.preventDefault();
+            showSection('inventory');
+            logAudit('keyboard_shortcut', 'F2: Inventory');
+            break;
+        case 'F3':
+            event.preventDefault();
+            showSection('pos');
+            logAudit('keyboard_shortcut', 'F3: POS');
+            break;
+        case 'F4':
+            event.preventDefault();
+            showSection('billing');
+            logAudit('keyboard_shortcut', 'F4: Billing');
+            break;
+        case 'F5':
+            event.preventDefault();
+            showSection('purchase');
+            logAudit('keyboard_shortcut', 'F5: Purchase');
+            break;
+        case 'F6':
+            event.preventDefault();
+            showSection('reports');
+            logAudit('keyboard_shortcut', 'F6: Reports');
+            break;
+        case 'F7':
+            event.preventDefault();
+            showSection('audit');
+            logAudit('keyboard_shortcut', 'F7: Audit');
+            break;
+        case 'F8':
+            event.preventDefault();
+            showSettings();
+            logAudit('keyboard_shortcut', 'F8: Settings');
+            break;
+        case 'F9':
+            event.preventDefault();
+            clearCart();
+            logAudit('keyboard_shortcut', 'F9: Clear Cart');
+            break;
+        case 'F10':
+            event.preventDefault();
+            checkout();
+            logAudit('keyboard_shortcut', 'F10: Checkout');
+            break;
+        case 'F11':
+            event.preventDefault();
+            generateBarcodes();
+            logAudit('keyboard_shortcut', 'F11: Barcodes');
+            break;
+        case 'F12':
+            event.preventDefault();
+            exportData();
+            logAudit('keyboard_shortcut', 'F12: Export Data');
+            break;
+    }
+
+    // Number pad for quantity (if cart item is selected)
+    if (event.key >= '0' && event.key <= '9' && event.location === KeyboardEvent.DOM_KEY_LOCATION_NUMPAD) {
+        event.preventDefault();
+        const quantity = parseInt(event.key);
+        // This would need more context - for now, just log
+        logAudit('keyboard_shortcut', `Numpad ${quantity}: Quantity input`);
+    }
 }
 
 // Supplier Management
