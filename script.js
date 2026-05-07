@@ -30,6 +30,30 @@ function getUserKey(baseKey) {
     return currentUser ? `${currentUser.uid}_${baseKey}` : baseKey;
 }
 
+// Function to migrate existing data to user-specific keys
+async function migrateData() {
+    const keys = [ITEMS_KEY, SALES_KEY, CUSTOMERS_KEY, HELD_ORDERS_KEY, SETTINGS_KEY, SUPPLIERS_KEY, PURCHASE_ORDERS_KEY, AUDIT_LOG_KEY];
+    for (const key of keys) {
+        try {
+            // Check if user-specific data exists
+            const userSnapshot = await database.ref(getUserKey(key)).once('value');
+            const userData = userSnapshot.val();
+            if (!userData || (Array.isArray(userData) && userData.length === 0)) {
+                // Load from global key
+                const globalSnapshot = await database.ref(key).once('value');
+                const globalData = globalSnapshot.val();
+                if (globalData && (Array.isArray(globalData) ? globalData.length > 0 : Object.keys(globalData).length > 0)) {
+                    // Save to user-specific key
+                    await database.ref(getUserKey(key)).set(globalData);
+                    console.log(`Migrated ${key} data to user-specific key`);
+                }
+            }
+        } catch (error) {
+            console.error('Migration error for', key, error);
+        }
+    }
+}
+
 // Helper functions for Firebase
 async function getData(baseKey) {
     const key = getUserKey(baseKey);
@@ -106,6 +130,7 @@ auth.onAuthStateChanged((user) => {
         document.getElementById('mainApp').style.display = 'block';
         if (!realtimeSetup) {
             setupRealtimeData();
+            migrateData(); // Migrate existing data to user-specific keys
             realtimeSetup = true;
         }
     } else {
