@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POS & Inventory System</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>POS & Inventory Management System</h1>
+        <nav>
+            <button onclick="showSection('dashboard')">Dashboard</button>
+            <button onclick="showSection('inventory')">Inventory</button>
+            <button onclick="showSection('pos')">POS</button>
+            <button onclick="showSection('billing')">Billing</button>
+            <button onclick="showSection('reports')">Reports</button>
+            <button onclick="showSettings()">Settings</button>
+        </nav>
+    </header>
+
+    <main>
+        <section id="dashboard" class="section active">
+            <h2>Dashboard</h2>
+            <div class="dashboard-cards">
+                <div class="card">
+                    <h3>Total Items</h3>
+                    <p id="totalItems">0</p>
+                </div>
+                <div class="card">
+                    <h3>Total Sales</h3>
+                    <p id="totalSales">0</p>
+                </div>
+                <div class="card">
+                    <h3>Low Stock Items</h3>
+                    <p id="lowStock">0</p>
+                </div>
+                <div class="card">
+                    <h3>Total Revenue</h3>
+                    <p id="totalRevenue">₹0.00</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="inventory" class="section">
+            <h2>Inventory Management</h2>
+            <div class="inventory-controls">
+                <input type="text" id="inventorySearch" placeholder="Search items...">
+                <select id="categoryFilter">
+                    <option value="">All Categories</option>
+                </select>
+                <button onclick="showAddItemForm()">Add Item</button>
+                <button onclick="exportInventory()">Export to CSV</button>
+                <button onclick="showBulkActions()">Bulk Actions</button>
+            </div>
+            <div class="inventory-stats">
+                <div class="stat-card">
+                    <h4>Total Items</h4>
+                    <p id="totalInventoryItems">0</p>
+                </div>
+                <div class="stat-card">
+                    <h4>Total Value</h4>
+                    <p id="totalInventoryValue">₹0.00</p>
+                </div>
+                <div class="stat-card">
+                    <h4>Low Stock Items</h4>
+                    <p id="lowStockCount">0</p>
+                </div>
+            </div>
+            <div class="table-container">
+                <table id="inventoryTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>SKU</th>
+                            <th>Barcode</th>
+                            <th>HSN</th>
+                            <th>Category</th>
+                            <th>Cost Price</th>
+                            <th>Selling Price</th>
+                            <th>MRP</th>
+                            <th>Quantity</th>
+                            <th>Min Stock</th>
+                            <th>Supplier</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="pos" class="section">
+            <h2>Point of Sale</h2>
+            <div class="pos-header">
+                <div class="customer-info">
+                    <span id="customerName">Walk-in Customer</span>
+                    <button onclick="selectCustomer()">Change Customer</button>
+                </div>
+                <div class="order-info">
+                    <span>Order #<span id="orderNumber">001</span></span>
+                    <button onclick="holdOrder()">Hold Order</button>
+                    <button onclick="recallOrder()">Recall Order</button>
+                </div>
+            </div>
+            <div class="pos-container">
+                <div class="item-list">
+                    <div class="item-controls">
+                        <input type="text" id="itemSearch" placeholder="Search items...">
+                        <input type="text" id="barcodeInput" placeholder="Scan barcode...">
+                        <button onclick="scanBarcode()">Scan</button>
+                    </div>
+                    <div id="itemGrid"></div>
+                </div>
+                <div class="cart">
+                    <h3>Cart</h3>
+                    <div class="tax-controls">
+                        <label>
+                            <input type="checkbox" id="gstEnabled" checked> Enable GST
+                        </label>
+                        <label>
+                            GST Rate: <span id="gstRateValue">18</span>%
+                            <input type="range" id="gstRate" min="0" max="30" value="18">
+                        </label>
+                    </div>
+                    <div class="cart-items">
+                        <ul id="cartList"></ul>
+                    </div>
+                    <div class="cart-summary">
+                        <div class="summary-row">
+                            <span>Subtotal:</span>
+                            <span>₹<span id="subtotal">0.00</span></span>
+                        </div>
+                        <div class="summary-row">
+                            <span>Discount:</span>
+                            <span>-₹<span id="discountAmount">0.00</span></span>
+                        </div>
+                        <div class="summary-row" id="taxRow">
+                            <span>Tax (GST <span id="gstPercent">18</span>%):</span>
+                            <span>₹<span id="taxAmount">0.00</span></span>
+                        </div>
+                        <div class="summary-row total">
+                            <strong>Total:</strong>
+                            <strong>₹<span id="cartTotal">0.00</span></strong>
+                        </div>
+                    </div>
+                    <div class="cart-actions">
+                        <button onclick="applyDiscount()">Apply Discount</button>
+                        <button onclick="clearCart()">Clear Cart</button>
+                        <button onclick="checkout()" class="checkout-btn">Checkout</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="billing" class="section">
+            <h2>Billing & Invoices</h2>
+            <table id="invoiceTable">
+                <thead>
+                    <tr>
+                        <th>Invoice ID</th>
+                        <th>Date</th>
+                        <th>Total</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <div class="invoice-actions">
+                <button onclick="printAllInvoices()">Print All Invoices</button>
+            </div>
+        </section>
+
+        <section id="reports" class="section">
+            <h2>Reports</h2>
+            <div class="report-controls">
+                <label>Report Type:
+                    <select id="reportType">
+                        <option value="sales">Sales Report</option>
+                        <option value="inventory">Inventory Report</option>
+                        <option value="customer">Customer Report</option>
+                        <option value="revenue">Revenue Report</option>
+                    </select>
+                </label>
+                <label>From Date: <input type="date" id="reportFromDate"></label>
+                <label>To Date: <input type="date" id="reportToDate"></label>
+                <button onclick="generateReport()">Generate Report</button>
+                <button onclick="exportReport()">Export Report</button>
+            </div>
+            <div id="reportContent"></div>
+        </section>
+    </main>
+
+    <!-- Modals -->
+    <div id="addItemModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>Add New Item</h3>
+            <form id="addItemForm">
+                <label>Name: <input type="text" id="itemName" required></label>
+                <label>SKU: <input type="text" id="itemSKU" required></label>
+                <label>Barcode: <input type="text" id="itemBarcode"></label>
+                <label>HSN Code: <input type="text" id="itemHSN"></label>
+                <label>Category: <input type="text" id="itemCategory" required></label>
+                <label>Cost Price: <input type="number" id="itemCostPrice" step="0.01" required></label>
+                <label>Selling Price: <input type="number" id="itemSellingPrice" step="0.01" required></label>
+                <label>MRP: <input type="number" id="itemMRP" step="0.01" required></label>
+                <label>Quantity: <input type="number" id="itemQuantity" required></label>
+                <label>Min Stock Level: <input type="number" id="itemMinStock" required></label>
+                <label>Supplier: <input type="text" id="itemSupplier"></label>
+                <button type="submit">Add Item</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="bulkActionsModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>Bulk Actions</h3>
+            <button onclick="bulkDelete()">Delete Selected Items</button>
+            <button onclick="bulkUpdateCategory()">Update Category for Selected</button>
+            <div id="bulkSelection">
+                <h4>Select Items:</h4>
+                <div id="bulkItemList"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="customerModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>Select Customer</h3>
+            <input type="text" id="customerSearch" placeholder="Search customers...">
+            <div id="customerList"></div>
+            <button onclick="addNewCustomer()">Add New Customer</button>
+        </div>
+    </div>
+
+    <div id="paymentModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>Payment</h3>
+            <div class="payment-summary">
+                <p>Total: ₹<span id="paymentTotal">0.00</span></p>
+                <p>Paid: ₹<span id="paidAmount">0.00</span></p>
+                <p>Change: ₹<span id="changeAmount">0.00</span></p>
+            </div>
+            <div class="payment-methods">
+                <button onclick="selectPaymentMethod('cash')">Cash</button>
+                <button onclick="selectPaymentMethod('card')">Card</button>
+                <button onclick="selectPaymentMethod('upi')">UPI</button>
+                <button onclick="selectPaymentMethod('split')">Split Payment</button>
+            </div>
+            <div id="paymentInput">
+                <label>Amount: <input type="number" id="paymentAmount" step="0.01"></label>
+                <button onclick="processPayment()">Pay</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="discountModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>Apply Discount</h3>
+            <label>Discount Type:
+                <select id="discountType">
+                    <option value="percentage">Percentage</option>
+                    <option value="fixed">Fixed Amount</option>
+                </select>
+            </label>
+            <label>Discount Value: <input type="number" id="discountValue" step="0.01"></label>
+            <button onclick="applyDiscountToCart()">Apply</button>
+        </div>
+    </div>
+
+    <div id="receiptModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>Receipt</h3>
+            <div id="receiptContent"></div>
+            <button onclick="window.print()">Print Receipt</button>
+            <button onclick="closeModal()">Close</button>
+        </div>
+    </div>
+
+    <div id="invoiceModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>Invoice Details</h3>
+            <div id="invoiceContent"></div>
+            <button onclick="printInvoice()">Print Invoice</button>
+            <button onclick="closeModal()">Close</button>
+        </div>
+    </div>
+
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>Shop Settings</h3>
+            <form id="settingsForm">
+                <label>Shop Name: <input type="text" id="shopName" required></label>
+                <label>Address: <textarea id="shopAddress" rows="3"></textarea></label>
+                <label>Phone: <input type="text" id="shopPhone"></label>
+                <label>Email: <input type="email" id="shopEmail"></label>
+                <label>GST Number: <input type="text" id="shopGST"></label>
+                <label>Website: <input type="url" id="shopWebsite"></label>
+                <label>Logo URL: <input type="url" id="shopLogo"></label>
+                <button type="submit">Save Settings</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
