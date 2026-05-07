@@ -25,8 +25,14 @@ const SUPPLIERS_KEY = 'pos_suppliers';
 const PURCHASE_ORDERS_KEY = 'pos_purchase_orders';
 const AUDIT_LOG_KEY = 'pos_audit_log';
 
+// Function to get user-specific key
+function getUserKey(baseKey) {
+    return currentUser ? `${currentUser.uid}_${baseKey}` : baseKey;
+}
+
 // Helper functions for Firebase
-async function getData(key) {
+async function getData(baseKey) {
+    const key = getUserKey(baseKey);
     try {
         const snapshot = await database.ref(key).once('value');
         return snapshot.val() || [];
@@ -36,7 +42,8 @@ async function getData(key) {
     }
 }
 
-async function setData(key, data) {
+async function setData(baseKey, data) {
+    const key = getUserKey(baseKey);
     try {
         await database.ref(key).set(data);
     } catch (error) {
@@ -103,6 +110,19 @@ auth.onAuthStateChanged((user) => {
         }
     } else {
         currentUser = null;
+        realtimeSetup = false; // Reset to allow setup for new user
+        // Clear user-specific data when logged out
+        items = [];
+        sales = [];
+        customers = [];
+        heldOrders = [];
+        suppliers = [];
+        purchaseOrders = [];
+        auditLog = [];
+        shopSettings = {};
+        cart = [];
+        discount = 0;
+        updateCart();
         document.getElementById('mainApp').style.display = 'none';
         document.getElementById('loginModal').style.display = 'block';
     }
@@ -238,8 +258,8 @@ function showSection(sectionId) {
 
 // Data persistence functions
 function setupRealtimeData() {
-    // Set up real-time listeners for shared data
-    database.ref(ITEMS_KEY).on('value', (snapshot) => {
+    // Set up real-time listeners for user-specific data
+    database.ref(getUserKey(ITEMS_KEY)).on('value', (snapshot) => {
         items = snapshot.val() || [];
         renderInventoryTable();
         renderItemGrid();
@@ -248,34 +268,34 @@ function setupRealtimeData() {
         updateCategoryFilter();
     });
 
-    database.ref(SALES_KEY).on('value', (snapshot) => {
+    database.ref(getUserKey(SALES_KEY)).on('value', (snapshot) => {
         sales = snapshot.val() || [];
         renderInvoiceTable();
         updateDashboard();
         currentOrderNumber = sales.length + 1;
     });
 
-    database.ref(CUSTOMERS_KEY).on('value', (snapshot) => {
+    database.ref(getUserKey(CUSTOMERS_KEY)).on('value', (snapshot) => {
         customers = snapshot.val() || [];
     });
 
-    database.ref(HELD_ORDERS_KEY).on('value', (snapshot) => {
+    database.ref(getUserKey(HELD_ORDERS_KEY)).on('value', (snapshot) => {
         heldOrders = snapshot.val() || [];
     });
 
-    database.ref(SUPPLIERS_KEY).on('value', (snapshot) => {
+    database.ref(getUserKey(SUPPLIERS_KEY)).on('value', (snapshot) => {
         suppliers = snapshot.val() || [];
     });
 
-    database.ref(PURCHASE_ORDERS_KEY).on('value', (snapshot) => {
+    database.ref(getUserKey(PURCHASE_ORDERS_KEY)).on('value', (snapshot) => {
         purchaseOrders = snapshot.val() || [];
     });
 
-    database.ref(AUDIT_LOG_KEY).on('value', (snapshot) => {
+    database.ref(getUserKey(AUDIT_LOG_KEY)).on('value', (snapshot) => {
         auditLog = snapshot.val() || [];
     });
 
-    database.ref(SETTINGS_KEY).on('value', (snapshot) => {
+    database.ref(getUserKey(SETTINGS_KEY)).on('value', (snapshot) => {
         shopSettings = snapshot.val() || {};
     });
 
