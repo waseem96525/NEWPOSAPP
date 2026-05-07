@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <div id="mainApp" style="display: none;">
     <header>
         <h1>POS & Inventory Management System</h1>
         <nav>
@@ -18,6 +19,7 @@
             <button onclick="showSection('reports')">Reports</button>
             <button onclick="showSection('audit')">Audit</button>
             <button onclick="showSettings()">Settings</button>
+            <button onclick="logoutUser()">Logout</button>
         </nav>
     </header>
 
@@ -227,6 +229,35 @@
             </div>
         </section>
     </main>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal" style="display: block;">
+        <div class="modal-content">
+            <h3>Login to POS System</h3>
+            <form id="loginForm">
+                <label>Email: <input type="email" id="loginEmail" required></label>
+                <label>Password: <input type="password" id="loginPassword" required></label>
+                <button type="submit">Login</button>
+                <button type="button" onclick="showSignup()">Sign Up</button>
+            </form>
+            <div id="loginMessage"></div>
+        </div>
+    </div>
+
+    <!-- Signup Modal -->
+    <div id="signupModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeSignup()">&times;</span>
+            <h3>Sign Up</h3>
+            <form id="signupForm">
+                <label>Email: <input type="email" id="signupEmail" required></label>
+                <label>Password: <input type="password" id="signupPassword" required></label>
+                <button type="submit">Sign Up</button>
+            </form>
+            <div id="signupMessage"></div>
+        </div>
+    </div>
 
     <!-- Modals -->
     <div id="addItemModal" class="modal">
@@ -414,6 +445,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/emailjs-com@2/dist/email.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
