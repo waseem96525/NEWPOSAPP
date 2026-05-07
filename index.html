@@ -214,6 +214,7 @@
                         <option value="inventory">Inventory Report</option>
                         <option value="customer">Customer Report</option>
                         <option value="revenue">Revenue Report</option>
+                        <option value="category">Category Sales Report</option>
                     </select>
                 </label>
                 <label>From Date: <input type="date" id="reportFromDate"></label>
@@ -396,6 +397,15 @@
             <h3>Barcode Labels</h3>
             <div id="barcodeContainer"></div>
             <button onclick="printBarcodes()">Print Labels</button>
+        </div>
+    </div>
+
+    <div id="editSaleModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>Edit Sale</h3>
+            <div id="editSaleContent"></div>
+            <button onclick="saveEditedSale()">Save Changes</button>
         </div>
     </div>
 

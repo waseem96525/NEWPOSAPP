@@ -127,6 +127,7 @@ let gstRate = 18;
 let autoBackupIntervalId = null;
 let autoBackupEnabled = false;
 let notificationIntervalId = null;
+let editingSaleIndex = -1;
 
 // DOM elements
 const sections = document.querySelectorAll('.section');
@@ -355,6 +356,7 @@ function closeModal() {
     document.getElementById('supplierModal').style.display = 'none';
     document.getElementById('poModal').style.display = 'none';
     document.getElementById('barcodeModal').style.display = 'none';
+    document.getElementById('editSaleModal').style.display = 'none';
 }
 
 addItemForm.addEventListener('submit', async (e) => {
@@ -812,10 +814,77 @@ function renderInvoiceTable() {
                 <button onclick="viewInvoice(${index})">View</button>
                 <button onclick="printInvoice(${index})">Print</button>
                 <button onclick="changeInvoiceStatus(${index})">Change Status</button>
+                <button onclick="editSale(${index})">Edit</button>
+                <button onclick="refundSale(${index})">Refund</button>
             </td>
         `;
         invoiceTableBody.appendChild(row);
     });
+}
+
+function editSale(index) {
+    editingSaleIndex = index;
+    const sale = sales[index];
+    let content = `
+        <p><strong>Customer:</strong> ${sale.customer.name}</p>
+        <p><strong>Items:</strong></p>
+        <ul id="editItemsList">
+    `;
+    sale.items.forEach((item, itemIndex) => {
+        content += `
+            <li>
+                ${item.name} - Current Qty: ${item.quantity}
+                <input type="number" id="editQty${itemIndex}" value="${item.quantity}" min="0">
+            </li>
+        `;
+    });
+    content += `
+        </ul>
+        <p><strong>Discount:</strong> <input type="number" id="editDiscount" value="${sale.discount}" min="0" step="0.01"></p>
+        <p><strong>GST Rate:</strong> <input type="number" id="editGstRate" value="${sale.gstRate}" min="0" max="100" step="0.01">%</p>
+    `;
+    document.getElementById('editSaleContent').innerHTML = content;
+    document.getElementById('editSaleModal').style.display = 'block';
+}
+
+async function saveEditedSale() {
+    const sale = sales[editingSaleIndex];
+    // Restore original stock
+    sale.items.forEach(item => {
+        const inventoryItem = items.find(i => i.sku === item.sku);
+        if (inventoryItem) {
+            inventoryItem.quantity += item.quantity;
+        }
+    });
+    // Update with new quantities
+    let stockError = false;
+    sale.items.forEach((item, itemIndex) => {
+        const newQty = parseInt(document.getElementById(`editQty${itemIndex}`).value);
+        const inventoryItem = items.find(i => i.sku === item.sku);
+        if (inventoryItem && inventoryItem.quantity >= newQty) {
+            inventoryItem.quantity -= newQty;
+            item.quantity = newQty;
+        } else {
+            alert(`Not enough stock for ${item.name}. Available: ${inventoryItem ? inventoryItem.quantity : 0}`);
+            stockError = true;
+        }
+    });
+    if (stockError) return;
+    // Update discount and gst
+    sale.discount = parseFloat(document.getElementById('editDiscount').value) || 0;
+    sale.gstRate = parseFloat(document.getElementById('editGstRate').value) || 0;
+    // Recalculate totals
+    sale.subtotal = sale.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    sale.tax = (sale.subtotal - sale.discount) * (sale.gstRate / 100);
+    sale.total = sale.subtotal - sale.discount + sale.tax;
+    saveData();
+    renderInvoiceTable();
+    updateDashboard();
+    updateInventoryStats();
+    closeModal();
+    editingSaleIndex = -1;
+    await logAudit('sale_edit', `Edited sale ID: ${sale.id}, new total: ₹${sale.total.toFixed(2)}`);
+    alert('Sale updated successfully!');
 }
 
 function viewInvoice(index) {
@@ -968,6 +1037,9 @@ function generateReport() {
             reportHTML += generateRevenueReport(filteredSales);
             generateRevenueChart(filteredSales);
             break;
+        case 'category':
+            reportHTML += generateCategoryReport(filteredSales);
+            break;
     }
 
     document.getElementById('reportContent').innerHTML = reportHTML;
@@ -1089,6 +1161,28 @@ function generateRevenueReport(filteredSales) {
     });
     html += '</tbody></table>';
 
+    return html;
+}
+
+function generateCategoryReport(filteredSales) {
+    let html = '<h4>Category-wise Sales Report</h4>';
+    const categorySales = {};
+    filteredSales.forEach(sale => {
+        sale.items.forEach(item => {
+            const inventoryItem = items.find(i => i.sku === item.sku);
+            const category = inventoryItem ? inventoryItem.category : 'Unknown';
+            if (!categorySales[category]) {
+                categorySales[category] = { total: 0, quantity: 0 };
+            }
+            categorySales[category].total += item.price * item.quantity;
+            categorySales[category].quantity += item.quantity;
+        });
+    });
+    html += '<table><thead><tr><th>Category</th><th>Total Quantity Sold</th><th>Total Sales (₹)</th></tr></thead><tbody>';
+    Object.entries(categorySales).sort((a, b) => b[1].total - a[1].total).forEach(([category, data]) => {
+        html += `<tr><td>${category}</td><td>${data.quantity}</td><td>₹${data.total.toFixed(2)}</td></tr>`;
+    });
+    html += '</tbody></table>';
     return html;
 }
 
@@ -1263,11 +1357,35 @@ function showSettings() {
 
 function changeInvoiceStatus(index) {
     const sale = sales[index];
-    const newStatus = prompt('Enter new status (paid/pending/cancelled):', sale.status);
-    if (newStatus && ['paid', 'pending', 'cancelled'].includes(newStatus)) {
+    const newStatus = prompt('Enter new status (paid/pending/cancelled/refunded):', sale.status);
+    if (newStatus && ['paid', 'pending', 'cancelled', 'refunded'].includes(newStatus)) {
         sales[index].status = newStatus;
         saveData();
         renderInvoiceTable();
+    }
+}
+
+async function refundSale(index) {
+    const sale = sales[index];
+    if (sale.status === 'refunded') {
+        alert('Sale already refunded.');
+        return;
+    }
+    if (confirm(`Refund sale ${sale.id}? This will restore stock and mark as refunded.`)) {
+        // Restore stock
+        sale.items.forEach(item => {
+            const inventoryItem = items.find(i => i.sku === item.sku);
+            if (inventoryItem) {
+                inventoryItem.quantity += item.quantity;
+            }
+        });
+        sale.status = 'refunded';
+        saveData();
+        renderInvoiceTable();
+        updateDashboard();
+        updateInventoryStats();
+        await logAudit('sale_refund', `Refunded sale ID: ${sale.id}, amount: ₹${sale.total.toFixed(2)}`);
+        alert('Sale refunded successfully!');
     }
 }
 
